@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	  <OutputType>WinExe</OutputType>
+	  <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
+	  <Platforms>AnyCPU;x64</Platforms>
+	  <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+	  <OptimizationPreference>Size</OptimizationPreference>
+	  <StackTraceSupport>false</StackTraceSupport>
+	  <InvariantGlobalization>true</InvariantGlobalization>
+	  <EventSourceSupport>false</EventSourceSupport>
+	  <UseSystemResourceKeys>true</UseSystemResourceKeys>
+	  <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+	  <IlcStripDebugData>true</IlcStripDebugData>
+	  <IlcGenerateDebugInfo>false</IlcGenerateDebugInfo>
+	  <IlcGenerateMetadataFile>false</IlcGenerateMetadataFile>
+	  <UseWindowsForms>true</UseWindowsForms>
+	  <_SuppressWinFormsTrimError>true</_SuppressWinFormsTrimError>
+	  <DebugType>none</DebugType>
+	  <DebugSymbols>false</DebugSymbols>
+	  <StripSymbols>true</StripSymbols>
+	  <SignAssembly>true</SignAssembly>
+	  <NoWarn>CS8618;CS8600;CS8601;CS8602;CS8603;CS8604;CS8625;CS0414;CS0649;CS0168;CS0472;CA1416;CA2022</NoWarn>
+  </PropertyGroup>
+
+	<PropertyGroup>
+		<Win32Resource>VS.res</Win32Resource>
+	</PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WinFormsComInterop" Version="0.5.0" />
+  </ItemGroup>
+
+</Project>
