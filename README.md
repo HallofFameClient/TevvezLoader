@@ -10,6 +10,7 @@
 - Open it
 - Select a Game Folder
 - You get a MessageBox "Game Starting..."
+- Press OK
 - Just wait 15-25 sec.
 - Have Fun.
 
