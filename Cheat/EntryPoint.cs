@@ -201,7 +201,7 @@ namespace Cheat
         {
             private static readonly HttpClient _Http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
             private static readonly string _ClientVersion = "1.0.7";
-            private static readonly string ServerUrl = "http://45.11.228.204:8080";
+            private static readonly string ServerUrl = "join dc for ip";
 
             public static async Task<(bool Success, string PortOrError)> GetPort()
             {
