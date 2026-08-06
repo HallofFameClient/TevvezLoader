@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -12,34 +11,16 @@ namespace Cheat
         [STAThread]
         public static async Task Main(string[] args)
         {
-            ComWrappers.RegisterForMarshalling(WinFormsComInterop.WinFormsComWrappers.Instance);
-
-            string? folder = null;
-
-            for (int i = 0; i < args.Length; i++)
-            {
-                if (args[i].StartsWith("--gamepath=", StringComparison.OrdinalIgnoreCase))
-                {
-                    folder = args[i].Substring("--gamepath=".Length).Trim('"');
-                    break;
-                }
-                else if (args[i].Equals("--gamepath", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-                {
-                    folder = args[++i];
-                    break;
-                }
-            }
-
+            string? folder = ParseGamePathArgument(args);
             if (string.IsNullOrEmpty(folder))
             {
                 folder = await PickFolderAsync("Select the VRChat installation folder");
                 if (string.IsNullOrEmpty(folder))
-                {
                     return;
-                }
             }
 
             PathGame = folder;
+            Debug.WriteLine($"Game path set to: {PathGame}");
 
             try
             {
@@ -47,7 +28,8 @@ namespace Cheat
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Fehler: {ex.Message}");
+                Debug.WriteLine($"Fatal error: {ex.Message}");
+                MessageBox.Show($"Ein schwerwiegender Fehler ist aufgetreten:\n{ex.Message}", "Fehler", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -55,13 +37,23 @@ namespace Cheat
             }
         }
 
+        private static string? ParseGamePathArgument(string[] args)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i].StartsWith("--gamepath=", StringComparison.OrdinalIgnoreCase))
+                    return args[i].Substring("--gamepath=".Length).Trim('"');
+
+                if (args[i].Equals("--gamepath", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                    return args[++i].Trim('"');
+            }
+            return null;
+        }
+
         public static void Exit(string name)
         {
-            try
-            {
-                Environment.FailFast(!string.IsNullOrEmpty(name) ? name : "discord.gg/8MvQgfnfvJ, Application terminated unexpectedly.");
-            }
-            catch { Environment.Exit(-1); }
+            Debug.WriteLine($"Loader wird beendet. Grund: {name}");
+            Environment.Exit(0);
         }
 
         public static Task<string?> PickFolderAsync(string title = "Select a folder")
@@ -77,14 +69,15 @@ namespace Cheat
                         {
                             Description = title,
                             ShowNewFolderButton = false,
+                            UseDescriptionForTitle = true
                         };
-
                         if (dialog.ShowDialog() == DialogResult.OK)
-                        {
                             result = dialog.SelectedPath;
-                        }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"FolderBrowserDialog error: {ex.Message}");
+                    }
                 });
                 thread.SetApartmentState(ApartmentState.STA);
                 thread.Start();
@@ -96,11 +89,11 @@ namespace Cheat
         public static async Task StartBypassAsync()
         {
             if (string.IsNullOrWhiteSpace(PathGame))
-                Exit("Game path is empty. Please set a valid folder.");
+                Exit("Game path is empty.");
 
             await Task.Delay(100);
 
-            var exePath = Path.Combine(PathGame, "VRChat.exe");
+            string exePath = Path.Combine(PathGame, "VRChat.exe");
             if (!File.Exists(exePath))
                 Exit($"VRChat.exe not found in '{PathGame}'.");
 
@@ -109,26 +102,27 @@ namespace Cheat
             string destination = Path.Combine(PathGame, "VRChat_Data", "Plugins", "x86_64", "EOSSDK-Win64-Shipping.dll");
             string downloadUrl = "https://github.com/HallofFameClient/BepInResource/raw/refs/heads/main/EOSSDK-Win64-Shipping.dll";
 
-            using var httpClient = new HttpClient();
             try
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
                 byte[] buffer = await httpClient.GetByteArrayAsync(downloadUrl);
                 await File.WriteAllBytesAsync(destination, buffer);
+                Debug.WriteLine("DLL successfully downloaded and replaced.");
             }
             catch (Exception ex)
             {
-                Exit($"Download fehlgeschlagen: {ex.Message}");
+                Exit($"Download failed: {ex.Message}");
             }
 
             await Task.Delay(3500);
-
             await StartVRChatProcessAsync(exePath);
         }
 
         private static async Task StartVRChatProcessAsync(string exePath)
         {
             var result = await Custom.GetPort();
-            Debug.WriteLine(result);
+            Debug.WriteLine($"GetPort result: Success={result.Success}, PortOrError={result.PortOrError}");
             if (!result.Success)
             {
                 MessageBox.Show($"Server Error: {result.PortOrError}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -136,15 +130,12 @@ namespace Cheat
             }
 
             string port = result.PortOrError;
-            string timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
 
             bool hasVrMonitor = Process.GetProcessesByName("vrmonitor").Any();
             string vrFlag = hasVrMonitor ? "" : "--no-vr";
 
-            string arguments = string.Format(
-                "{0} -eac_port={1}",
-                vrFlag, port
-            );
+            string arguments = $"--no-vr -eac_port={port}".Trim();
+            Debug.WriteLine($"Starting VRChat with arguments: {arguments}");
 
             var startInfo = new ProcessStartInfo(exePath, arguments)
             {
@@ -157,57 +148,64 @@ namespace Cheat
             try
             {
                 vrchatProcess = Process.Start(startInfo);
-                MessageBox.Show("Game Starting... The Loader will stay in the background to keep your connection alive.", "Starting", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Game Starting... The Loader will stay in the background to keep your connection alive.",
+                                "Starting", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                throw new Exception(string.Format(
-                    "Failed to start VRChat:",
-                    ex.Message
-                ), ex);
+                throw new Exception($"Failed to start VRChat: {ex.Message}", ex);
             }
 
             if (vrchatProcess != null)
-            {
                 await KeepConnectionAlive(vrchatProcess);
-            }
         }
 
         private static bool IsProcessStillRunning(Process process)
         {
             if (process == null) return false;
-            try
-            {
-                Process.GetProcessById(process.Id);
-                return !process.HasExited;
-            }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-            {
-                return false;
-            }
+            try { return !process.HasExited; }
+            catch { return false; }
         }
 
         private static async Task KeepConnectionAlive(Process vrchatProcess)
         {
+            Debug.WriteLine("KeepAlive loop started.");
+            // Ping alle 30 Sekunden, damit der Server den Heartbeat zuverlässig empfängt
+            TimeSpan pingInterval = TimeSpan.FromSeconds(30);
+
             while (IsProcessStillRunning(vrchatProcess))
             {
-                await Task.Delay(TimeSpan.FromMinutes(1));
-                if (!await Custom.SendKeepAlive())
-                    break;
+                try
+                {
+                    bool success = await Custom.SendKeepAlive();
+                    if (success)
+                        Debug.WriteLine("KeepAlive successful.");
+                    else
+                        Debug.WriteLine("KeepAlive failed (server response not 'ok'), but will retry.");
+                }
+                catch (Exception ex)
+                {
+                    // Auch bei Netzwerkfehlern einfach weitermachen
+                    Debug.WriteLine($"KeepAlive exception: {ex.Message}");
+                }
+
+                // Warten, bevor der nächste Ping gesendet wird
+                await Task.Delay(pingInterval);
             }
+
+            Debug.WriteLine("KeepAlive loop ended because VRChat process terminated.");
         }
 
-        public class Custom
+        public static class Custom
         {
             private static readonly HttpClient _Http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-            private static readonly string _ClientVersion = "1.0.7";
-            private static readonly string ServerUrl = "join dc for ip";
+            private static readonly string _ClientVersion = "1.0.8";
+            private static readonly string ServerUrl = " h t t p : / / 4 5 . 1 1 . 2 2 8 . 2 0 4 : 8 0 8 0 "; // make sure is correct
 
             public static async Task<(bool Success, string PortOrError)> GetPort()
             {
-                string combined = "vrchat" + "|" + _ClientVersion;
+                string combined = "vrchat|" + _ClientVersion;
                 string encryptedAuth = Uri.EscapeDataString(CryptoHelper.EncryptAndSign(combined));
-
                 string apiUrl = $"{ServerUrl}/?auth={encryptedAuth}";
 
                 try
@@ -215,20 +213,19 @@ namespace Cheat
                     string response = await _Http.GetStringAsync(apiUrl);
                     if (response.StartsWith("error|"))
                         return (false, response.Substring(6));
-
                     return (true, response);
                 }
                 catch (Exception ex)
                 {
+                    Debug.WriteLine($"GetPort error: {ex.Message}");
                     return (false, ex.Message);
                 }
             }
 
             public static async Task<bool> SendKeepAlive()
             {
-                string combined = "vrchat" + "|" + _ClientVersion;
+                string combined = "vrchat|" + _ClientVersion;
                 string encryptedAuth = Uri.EscapeDataString(CryptoHelper.EncryptAndSign(combined));
-
                 string apiUrl = $"{ServerUrl}/keepalive?auth={encryptedAuth}";
 
                 try
@@ -236,8 +233,9 @@ namespace Cheat
                     string response = await _Http.GetStringAsync(apiUrl);
                     return response == "ok";
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Debug.WriteLine($"SendKeepAlive error: {ex.Message}");
                     return false;
                 }
             }
@@ -247,6 +245,30 @@ namespace Cheat
     public static class CryptoHelper
     {
         private static readonly byte[] _key = Convert.FromBase64String("mJlvsRUAUQAQb4/JmyNY9PWs8lphaJQoLJWCHN50Jbs=");
+
+        public static string EncryptTimestampArgument(string plainText, string key)
+        {
+            using var aes = Aes.Create();
+            aes.Key = Encoding.UTF8.GetBytes(key);
+            aes.GenerateIV();
+            byte[] iv = aes.IV;
+
+            byte[] cipherText;
+            using (var ms = new MemoryStream())
+            using (var cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
+            using (var sw = new StreamWriter(cs))
+            {
+                sw.Write(plainText);
+                sw.Flush();
+                cs.FlushFinalBlock();
+                cipherText = ms.ToArray();
+            }
+
+            byte[] fullCipher = new byte[iv.Length + cipherText.Length];
+            Buffer.BlockCopy(iv, 0, fullCipher, 0, iv.Length);
+            Buffer.BlockCopy(cipherText, 0, fullCipher, iv.Length, cipherText.Length);
+            return Convert.ToBase64String(fullCipher);
+        }
 
         public static string EncryptAndSign(string plainText)
         {
@@ -272,7 +294,6 @@ namespace Cheat
             Buffer.BlockCopy(iv, 0, result, 0, iv.Length);
             Buffer.BlockCopy(cipher, 0, result, iv.Length, cipher.Length);
             Buffer.BlockCopy(hmacBytes, 0, result, iv.Length + cipher.Length, hmacBytes.Length);
-
             return Convert.ToBase64String(result);
         }
     }
