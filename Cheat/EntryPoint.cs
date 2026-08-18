@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -20,7 +20,7 @@ namespace Cheat
             }
 
             PathGame = folder;
-            Debug.WriteLine($"Game path set to: {PathGame}");
+            Console.WriteLine($"Game path set to: {PathGame}");
 
             try
             {
@@ -28,8 +28,7 @@ namespace Cheat
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Fatal error: {ex.Message}");
-                MessageBox.Show($"Ein schwerwiegender Fehler ist aufgetreten:\n{ex.Message}", "Fehler", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Console.WriteLine($"Fatal error: {ex.Message}");
             }
             finally
             {
@@ -52,7 +51,7 @@ namespace Cheat
 
         public static void Exit(string name)
         {
-            Debug.WriteLine($"Loader wird beendet. Grund: {name}");
+            Console.WriteLine($"Loader go closed. reason: {name}");
             Environment.Exit(0);
         }
 
@@ -76,7 +75,7 @@ namespace Cheat
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"FolderBrowserDialog error: {ex.Message}");
+                        Console.WriteLine($"FolderBrowserDialog error: {ex.Message}");
                     }
                 });
                 thread.SetApartmentState(ApartmentState.STA);
@@ -108,7 +107,7 @@ namespace Cheat
                 using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
                 byte[] buffer = await httpClient.GetByteArrayAsync(downloadUrl);
                 await File.WriteAllBytesAsync(destination, buffer);
-                Debug.WriteLine("DLL successfully downloaded and replaced.");
+                Console.WriteLine("DLL successfully downloaded and replaced.");
             }
             catch (Exception ex)
             {
@@ -122,7 +121,7 @@ namespace Cheat
         private static async Task StartVRChatProcessAsync(string exePath)
         {
             var result = await Custom.GetPort();
-            Debug.WriteLine($"GetPort result: Success={result.Success}, PortOrError={result.PortOrError}");
+            Console.WriteLine($"GetPort result: Success={result.Success}, PortOrError={result.PortOrError}");
             if (!result.Success)
             {
                 MessageBox.Show($"Server Error: {result.PortOrError}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -134,9 +133,7 @@ namespace Cheat
             bool hasVrMonitor = Process.GetProcessesByName("vrmonitor").Any();
             string vrFlag = hasVrMonitor ? "" : "--no-vr";
 
-            string arguments = $"--no-vr -eac_port={port}".Trim();
-            Debug.WriteLine($"Starting VRChat with arguments: {arguments}");
-
+            string arguments = $"--no-vr -eac_port={port} -main={encryptedAuth}".Trim();
             var startInfo = new ProcessStartInfo(exePath, arguments)
             {
                 UseShellExecute = false,
@@ -148,8 +145,6 @@ namespace Cheat
             try
             {
                 vrchatProcess = Process.Start(startInfo);
-                MessageBox.Show("Game Starting... The Loader will stay in the background to keep your connection alive.",
-                                "Starting", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -169,38 +164,38 @@ namespace Cheat
 
         private static async Task KeepConnectionAlive(Process vrchatProcess)
         {
-            Debug.WriteLine("KeepAlive loop started.");
-            // Ping alle 30 Sekunden, damit der Server den Heartbeat zuverlässig empfängt
-            TimeSpan pingInterval = TimeSpan.FromSeconds(30);
+            Console.WriteLine("KeepAlive loop started.");
+            TimeSpan pingInterval = TimeSpan.FromSeconds(120);
+            TimeSpan processCheckInterval = TimeSpan.FromSeconds(5);
 
-            while (IsProcessStillRunning(vrchatProcess))
+            while (true)
             {
+                for (int i = 0; i < pingInterval.TotalSeconds / processCheckInterval.TotalSeconds; i++)
+                {
+                    if (!IsProcessStillRunning(vrchatProcess))
+                    {
+                        return;
+                    }
+                    await Task.Delay(processCheckInterval);
+                }
+
                 try
                 {
                     bool success = await Custom.SendKeepAlive();
-                    if (success)
-                        Debug.WriteLine("KeepAlive successful.");
-                    else
-                        Debug.WriteLine("KeepAlive failed (server response not 'ok'), but will retry.");
+                    Console.WriteLine(success ? "KeepAlive successful." : "KeepAlive failed.");
                 }
                 catch (Exception ex)
                 {
-                    // Auch bei Netzwerkfehlern einfach weitermachen
-                    Debug.WriteLine($"KeepAlive exception: {ex.Message}");
+                    Console.WriteLine($"KeepAlive exception: {ex.Message}");
                 }
-
-                // Warten, bevor der nächste Ping gesendet wird
-                await Task.Delay(pingInterval);
             }
-
-            Debug.WriteLine("KeepAlive loop ended because VRChat process terminated.");
         }
 
         public static class Custom
         {
             private static readonly HttpClient _Http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
             private static readonly string _ClientVersion = "1.0.8";
-            private static readonly string ServerUrl = " h t t p : / / 4 5 . 1 1 . 2 2 8 . 2 0 4 : 8 0 8 0 "; // make sure is correct
+            private static readonly string ServerUrl = "htt p :/ /  4 5 .1  1 .2 2 8 .204: 808 0";
 
             public static async Task<(bool Success, string PortOrError)> GetPort()
             {
@@ -217,7 +212,7 @@ namespace Cheat
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"GetPort error: {ex.Message}");
+                    Console.WriteLine($"GetPort error: {ex.Message}");
                     return (false, ex.Message);
                 }
             }
@@ -235,7 +230,7 @@ namespace Cheat
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"SendKeepAlive error: {ex.Message}");
+                    Console.WriteLine($"SendKeepAlive error: {ex.Message}");
                     return false;
                 }
             }
