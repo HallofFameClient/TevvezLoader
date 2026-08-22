@@ -7,10 +7,20 @@ namespace Cheat
     public static class Loader
     {
         private static string PathGame;
+        private static string Password;
 
         [STAThread]
         public static async Task Main(string[] args)
         {
+            string? pass = ParseGamePasswordArgument(args);
+            if (string.IsNullOrEmpty(pass))
+            {
+                Console.Write("Password: ");
+                pass = Console.ReadLine();
+                if (string.IsNullOrEmpty(pass))
+                    return;
+            }
+
             string? folder = ParseGamePathArgument(args);
             if (string.IsNullOrEmpty(folder))
             {
@@ -20,6 +30,7 @@ namespace Cheat
             }
 
             PathGame = folder;
+            Password = pass;
             Console.WriteLine($"Game path set to: {PathGame}");
 
             try
@@ -49,9 +60,22 @@ namespace Cheat
             return null;
         }
 
+        private static string? ParseGamePasswordArgument(string[] args)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i].StartsWith("--password=", StringComparison.OrdinalIgnoreCase))
+                    return args[i].Substring("--password=".Length).Trim('"');
+
+                if (args[i].Equals("--password", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                    return args[++i].Trim('"');
+            }
+            return null;
+        }
+
         public static void Exit(string name)
         {
-            Console.WriteLine($"Loader go closed. reason: {name}");
+            Console.WriteLine($"Loader go closed. Grund: {name}");
             Environment.Exit(0);
         }
 
@@ -121,7 +145,6 @@ namespace Cheat
         private static async Task StartVRChatProcessAsync(string exePath)
         {
             var result = await Custom.GetPort();
-            Console.WriteLine($"GetPort result: Success={result.Success}, PortOrError={result.PortOrError}");
             if (!result.Success)
             {
                 MessageBox.Show($"Server Error: {result.PortOrError}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -129,11 +152,10 @@ namespace Cheat
             }
 
             string port = result.PortOrError;
-
             bool hasVrMonitor = Process.GetProcessesByName("vrmonitor").Any();
             string vrFlag = hasVrMonitor ? "" : "--no-vr";
 
-            string arguments = $"--no-vr -eac_port={port} -main={encryptedAuth}".Trim();
+            string arguments = $"--no-vr -eac_port={port}".Trim();
             var startInfo = new ProcessStartInfo(exePath, arguments)
             {
                 UseShellExecute = false,
@@ -150,59 +172,16 @@ namespace Cheat
             {
                 throw new Exception($"Failed to start VRChat: {ex.Message}", ex);
             }
-
-            if (vrchatProcess != null)
-                await KeepConnectionAlive(vrchatProcess);
-        }
-
-        private static bool IsProcessStillRunning(Process process)
-        {
-            if (process == null) return false;
-            try { return !process.HasExited; }
-            catch { return false; }
-        }
-
-        private static async Task KeepConnectionAlive(Process vrchatProcess)
-        {
-            Console.WriteLine("KeepAlive loop started.");
-            TimeSpan pingInterval = TimeSpan.FromSeconds(120);
-            TimeSpan processCheckInterval = TimeSpan.FromSeconds(5);
-
-            while (true)
-            {
-                for (int i = 0; i < pingInterval.TotalSeconds / processCheckInterval.TotalSeconds; i++)
-                {
-                    if (!IsProcessStillRunning(vrchatProcess))
-                    {
-                        return;
-                    }
-                    await Task.Delay(processCheckInterval);
-                }
-
-                try
-                {
-                    bool success = await Custom.SendKeepAlive();
-                    Console.WriteLine(success ? "KeepAlive successful." : "KeepAlive failed.");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"KeepAlive exception: {ex.Message}");
-                }
-            }
         }
 
         public static class Custom
         {
             private static readonly HttpClient _Http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-            private static readonly string _ClientVersion = "1.0.8";
-            private static readonly string ServerUrl = "htt p :/ /  4 5 .1  1 .2 2 8 .204: 808 0";
+            private static readonly string ServerUrl = "h t t p: //45 .11. 228.204:8 0 8 0";
 
             public static async Task<(bool Success, string PortOrError)> GetPort()
             {
-                string combined = "vrchat|" + _ClientVersion;
-                string encryptedAuth = Uri.EscapeDataString(CryptoHelper.EncryptAndSign(combined));
-                string apiUrl = $"{ServerUrl}/?auth={encryptedAuth}";
-
+                string apiUrl = $"{ServerUrl}/?auth={Uri.EscapeDataString(Password)}";
                 try
                 {
                     string response = await _Http.GetStringAsync(apiUrl);
@@ -212,26 +191,7 @@ namespace Cheat
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"GetPort error: {ex.Message}");
                     return (false, ex.Message);
-                }
-            }
-
-            public static async Task<bool> SendKeepAlive()
-            {
-                string combined = "vrchat|" + _ClientVersion;
-                string encryptedAuth = Uri.EscapeDataString(CryptoHelper.EncryptAndSign(combined));
-                string apiUrl = $"{ServerUrl}/keepalive?auth={encryptedAuth}";
-
-                try
-                {
-                    string response = await _Http.GetStringAsync(apiUrl);
-                    return response == "ok";
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"SendKeepAlive error: {ex.Message}");
-                    return false;
                 }
             }
         }
