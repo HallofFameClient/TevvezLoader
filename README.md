@@ -3,8 +3,8 @@
 - No VM required.
 - Fully Open Source
 
-## Discord:
-- discord.gg/8MvQgfnfvJ
+## Telegram:
+- t-me/+Ba98xQhu8MIzMjBi
 
 ## How to Use:
 - Open it
