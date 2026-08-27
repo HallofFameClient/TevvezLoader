@@ -43,7 +43,7 @@ namespace Cheat
             }
             finally
             {
-                Exit("discord.gg/8MvQgfnfvJ");
+                Exit("t-me/+Ba98xQhu8MIzMjBi");
             }
         }
 
